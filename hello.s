@@ -32,7 +32,7 @@ kraj:
 
 
 ;---------------------------------------------------------------------------
-; sprint(s *char)
+; sprintln(s *char)
 ; Print the null-terminated string s (eax) to stdout and append line-feed
 sprintln:
     call    sprint
