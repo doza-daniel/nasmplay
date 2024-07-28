@@ -1,6 +1,8 @@
 ; Define (initialized) variables in the data section
 SECTION .data
-filename db 'hello.s',0h
+filename    db 'hello.s',0h
+sep         db '-->',0h
+buffer_size db 255
 
 ; Define (NOT initialized) variables in the BSS section
 SECTION .bss
@@ -25,16 +27,18 @@ arg_loop:
     call    cat
     jmp     arg_loop
 
-
 kraj:
     call    exit
 
 
+;---------------------------------------------------------------------------
+; sprint(s *char)
+; Print the null-terminated string s (eax) to stdout and append line-feed
 sprintln:
     call    sprint
 
     push    eax
-    mov     eax, 0Ah        ;
+    mov     eax, 0Ah
     push    eax
 
     mov     eax, esp
@@ -43,7 +47,11 @@ sprintln:
     pop     eax
     pop     eax
     ret
+;---------------------------------------------------------------------------
 
+;---------------------------------------------------------------------------
+; sprint(s *char)
+; Print the null-terminated string s (eax) to stdout
 sprint:
     push    edx
     push    ecx
@@ -63,9 +71,12 @@ sprint:
     pop     edx
 
     ret
+;---------------------------------------------------------------------------
 
-; slen(String) -> Int
-; takes in a pointer to a string in `eax`, returns it's length in `eax`
+;---------------------------------------------------------------------------
+; slen(s *char) -> int
+; Calculate the length of null-terminated string s (eax) and return the length
+; in eax.
 slen:
     push    ebx
 
@@ -81,9 +92,11 @@ slen_done:
     pop ebx
 
     ret
+;---------------------------------------------------------------------------
 
-
-
+;---------------------------------------------------------------------------
+; cat(path *char)
+; Print out the file located at null-terminated string path (eax)
 cat:
     push    ebx
     push    ecx
@@ -128,12 +141,49 @@ read_done:
     pop     ecx
     pop     ebx
     ret
+;---------------------------------------------------------------------------
 
+;---------------------------------------------------------------------------
+; indexOf(s *char, l int, c char)
+; Try to find the index of character c in string s of length l. Returns the
+; index in eax or -1 if not found
+indexOf:
+    push    edx
 
+    mov     edx, eax
+indexOfLoop:
+    push    eax
+    sub     eax, edx
+    cmp     eax, ebx
+    je      indexNotFound
+    pop     eax
+
+    cmp     byte [eax], cl
+    je      indexFound
+    inc     eax
+    jmp     indexOfLoop
+
+indexFound:
+    sub     eax, edx
+    jmp     indexOfRet
+
+indexNotFound:
+    pop     eax
+    mov     eax, -1
+    jmp     indexOfRet
+
+indexOfRet:
+    pop     edx
+    ret
+;---------------------------------------------------------------------------
+
+;---------------------------------------------------------------------------
+; exit the program with 0 code
 exit:
     mov     ebx, 0
     mov     eax, 1
     int     80h
     ret
+;---------------------------------------------------------------------------
 
 ; vim: ft=nasm
