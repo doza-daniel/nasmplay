@@ -6,8 +6,8 @@ buffer_size db 255
 
 ; Define (NOT initialized) variables in the BSS section
 SECTION .bss
-buffer  resb 4096
-open_fd resb 4
+buffer      resb 4096
+open_fd     resb 4
 
 SECTION .text
 global _start
@@ -111,22 +111,69 @@ cat:
 
 read_loop:
     ; read file
-    mov     edx, 255            ; number of bytes to read - one for each letter of the file contents
+    mov     edx, [buffer_size]  ; number of bytes to read - one for each letter of the file contents
     mov     ecx, buffer         ; move the memory address of our file contents variable into ecx
-    mov     ebx, [open_fd]
-    mov     eax, 3              ; invoke SYS_READ (kernel opcode 3)
-    int     80h
+    mov     ebx, [open_fd]      ; file descriptor
+    mov     eax, 3              ; read
+    int     80h                 ; syscall
 
-    ; if 0 bytes read, return
-    cmp     eax, 0
-    jz      read_done
+    cmp     eax, 0              ; if 0 bytes read
+    jz      read_done           ; end of file
+
+    mov     ebx, eax
+    mov     edx, buffer
+
+handle_line:
+    cmp     byte [esp], 3Bh
+    je      push_lf
+    push    3Bh
+    jmp     continue
+push_lf:
+    push    0Ah
+continue:
+
+    pop     ecx                 ; get either ';' or '\lf' from stack depending on where we are in the line
+    mov     eax, edx            ; set up buffer pointer argument
+    call    indexOf             ; find the index of ';' or '\lf'
+    cmp     eax, -1             ; if it was *not* found
+    je      handle_end          ; stop loop - this means we are at the end of buffer
+
+    push    eax                 ; holds the index of '\lf' or ';', save for later
+    push    ebx                 ; holds the current current buffer len, save for later
+    push    edx                 ; holds the current start pointer of the buffer, save for later
+
+    mov     ecx, edx            ; set buffer
+    mov     edx, eax            ; set number of bytes to print (index of)
+    mov     ebx, 1              ; stdout
+    mov     eax, 4              ; write
+    int     80h                 ; syscall
+
+    mov     eax, sep            ; print '-->' instead of ';'
+    call    sprint
+
+    pop     edx                 ; restore pointer
+    pop     ebx                 ; restore len
+    pop     eax                 ; restore index of
+
+    add     eax, 1              ; eax points to a '\lf' or ';' - move it forward
+    add     edx, eax            ; point the buffer to the new start
+    sub     ebx, eax            ; calculate the remaining len to the end of buffer
+
+    jmp     handle_line         ; loop
+
+handle_end:                     ; flush (print) whatever is left in the buffer
+    mov     ecx, edx            ; pointer
+    mov     edx, ebx            ; count (current len)
+    mov     ebx, 1              ; stdout
+    mov     eax, 4              ; write
+    int     80h                 ; syscall
 
     ; print buffer
-    mov     edx, eax            ; buffer len
-    mov     ecx, buffer         ; buffer addr
-    mov     ebx, 1              ; STDOUT
-    mov     eax, 4              ; read syscall (4)
-    int     80h
+    ; mov     edx, eax            ; buffer len
+    ; mov     ecx, buffer         ; buffer addr
+    ; mov     ebx, 1              ; STDOUT
+    ; mov     eax, 4              ; read syscall (4)
+    ; int     80h
 
     jmp     read_loop
 
@@ -143,11 +190,15 @@ read_done:
     ret
 ;---------------------------------------------------------------------------
 
+
+
 ;---------------------------------------------------------------------------
 ; indexOf(s *char, l int, c char)
 ; Try to find the index of character c in string s of length l. Returns the
 ; index in eax or -1 if not found
 indexOf:
+    push    ebx
+    push    ecx
     push    edx
 
     mov     edx, eax
@@ -174,6 +225,8 @@ indexNotFound:
 
 indexOfRet:
     pop     edx
+    pop     ecx
+    pop     ebx
     ret
 ;---------------------------------------------------------------------------
 
@@ -185,5 +238,10 @@ exit:
     int     80h
     ret
 ;---------------------------------------------------------------------------
+
+kek:
+    mov     ebx, 0
+    mov     eax, 1
+    int     80h
 
 ; vim: ft=nasm
