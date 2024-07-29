@@ -124,7 +124,7 @@ read_loop:
     mov     edx, buffer
 
 handle_line:
-    cmp     byte [esp], 3Bh
+    cmp     cl, 3Bh
     je      push_lf
     push    3Bh
     jmp     continue
@@ -140,6 +140,7 @@ continue:
 
     push    eax                 ; holds the index of '\lf' or ';', save for later
     push    ebx                 ; holds the current current buffer len, save for later
+    push    ecx                 ; holds '\lf' or ';', what is being searched for
     push    edx                 ; holds the current start pointer of the buffer, save for later
 
     mov     ecx, edx            ; set buffer
@@ -152,6 +153,7 @@ continue:
     call    sprint
 
     pop     edx                 ; restore pointer
+    pop     ecx                 ; restore ';' or '\lf', which ever was searched last
     pop     ebx                 ; restore len
     pop     eax                 ; restore index of
 
