@@ -17,7 +17,7 @@ _start:
     mov     ebx, 0
 arg_loop:
     cmp     ebx, ecx
-    je      kraj
+    je      _end
     inc     ebx
     pop     eax
 
@@ -27,7 +27,8 @@ arg_loop:
     call    cat
     jmp     arg_loop
 
-kraj:
+_end:
+    mov     eax, 0
     call    exit
 
 
@@ -149,7 +150,7 @@ continue:
     mov     eax, 4              ; write
     int     80h                 ; syscall
 
-    mov     eax, sep            ; print '-->' instead of ';'
+    mov     eax, sep            ; print '-->' instead of ';' or '\lf'
     call    sprint
 
     pop     edx                 ; restore pointer
@@ -170,14 +171,7 @@ handle_end:                     ; flush (print) whatever is left in the buffer
     mov     eax, 4              ; write
     int     80h                 ; syscall
 
-    ; print buffer
-    ; mov     edx, eax            ; buffer len
-    ; mov     ecx, buffer         ; buffer addr
-    ; mov     ebx, 1              ; STDOUT
-    ; mov     eax, 4              ; read syscall (4)
-    ; int     80h
-
-    jmp     read_loop
+    jmp     read_loop           ; loop
 
 read_done:
     ; close file
@@ -192,7 +186,72 @@ read_done:
     ret
 ;---------------------------------------------------------------------------
 
+;---------------------------------------------------------------------------
+; atoi(s *char, l int) int
+; Parse int from string s (s -> eax, l -> ebx) - with a caveat: since we
+; know the string will be in the format '[0-9]+\.[0.9]', we will parse it as a
+; regular int and not a floating point (e.g. atoi("12.3") -> 123)
+atoi:
+    push    eax                     ; pointer to start of string
+    push    ebx                     ; string length
+    push    0                       ; exponent (y) for calculating x*10^y
+    push    0                       ; accumulated result
 
+
+    mov     ecx, -1                 ; start from -1: we inc first thing in loop so we reduce the number of branching when we hit '.'
+atoi_loop:
+    inc     ecx                     ; i++
+    cmp     ecx, dword [esp+8]      ; if i == len(s)
+    je      atoi_end                ; break
+
+    mov     eax, dword [esp+12]     ; eax = &(s[0])
+    mov     ebx, dword [esp+8]      ; ebx = len(s)
+    sub     ebx, ecx                ; ebx -= i
+    mov     al, byte [eax+ebx-1]    ; al = s[len(s)-i]
+    cmp     al, 0x2E                ; if al == '.'
+    je      atoi_loop               ; continue
+
+    sub     al, 0x30                ; al = al - '0'
+    and     eax, 0xFF               ; kill all irrelevant bits
+    push    eax                     ; save for after we calculate 10^x
+
+    mov     eax, 10                 ; first arg - base
+    mov     ebx, [esp+8]            ; second arg - exponent (from stack)
+    call    pow                     ; calc 10^x
+    add     dword [esp+8], 1        ; increment exponent
+
+    mov     ebx, eax                ; ebx = 10^x
+    pop     eax                     ; eax = current_digit
+    mul     ebx                     ; eax *= 10^x
+    pop     ebx                     ; get current total from stack
+    add     ebx, eax                ; add `current_digit * 10^x` to total
+    push    ebx                     ; push total back to stack
+
+    jmp     atoi_loop               ; loop
+atoi_end:
+    pop     eax
+    pop     ebx
+    pop     ebx
+    pop     ebx
+    ret
+;---------------------------------------------------------------------------
+
+;---------------------------------------------------------------------------
+; pow(x int, y int) -> int
+; Compute x^y. (x -> eax, y -> ebx)
+pow:
+    push    ecx
+    mov     ecx, eax
+    mov     eax, 1
+pow_loop:
+    cmp     ebx, 0
+    jz      pow_end
+    mul     ecx
+    dec     ebx
+    jmp     pow_loop
+pow_end:
+    pop     ecx
+    ret
 
 ;---------------------------------------------------------------------------
 ; indexOf(s *char, l int, c char)
@@ -233,17 +292,12 @@ indexOfRet:
 ;---------------------------------------------------------------------------
 
 ;---------------------------------------------------------------------------
-; exit the program with 0 code
+; exit the program with code in eax
 exit:
-    mov     ebx, 0
+    mov     ebx, eax
     mov     eax, 1
     int     80h
     ret
 ;---------------------------------------------------------------------------
-
-kek:
-    mov     ebx, 0
-    mov     eax, 1
-    int     80h
 
 ; vim: ft=nasm
