@@ -159,13 +159,13 @@ handle_buffer:
     mov     ecx, 0
 handle_loop:
     cmp     ecx, [ebp-8]
-    je      handle_loop_done
+    je      handle_done
     mov     eax, [ebp-4]
     cmp     byte [eax+ecx], 3Bh
     je      switch_state
     cmp     byte [eax+ecx], 0Ah
     je      line_feed_found
-    cmp     byte [current_state], 1
+    cmp     byte [current_state], 0
     je      in_key
     jmp     in_val
 line_feed_found:
@@ -186,11 +186,10 @@ line_feed_found:
 
     mov     byte [current_key_offset], 0
     mov     byte [current_val_offset], 0
-
-    jmp     inc_and_loop
 switch_state:
+    inc     ecx
     xor     byte [current_state], 1h
-    jmp     inc_and_loop
+    jmp     handle_loop
 in_key:
     mov     eax, [ebp-4]
     mov     bl, byte [eax+ecx]
@@ -204,11 +203,9 @@ in_val:
     movzx   eax, byte [current_val_offset]
     mov     byte [current_val_buff+eax], bl
     inc     byte [current_val_offset]
-    jmp     inc_and_loop
 inc_and_loop:
     inc     ecx
     jmp     handle_loop
-handle_loop_done:
 handle_done:
     mov esp, ebp
     pop ebp
