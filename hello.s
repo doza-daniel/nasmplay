@@ -207,8 +207,8 @@ inc_and_loop:
     inc     ecx
     jmp     handle_loop
 handle_done:
-    mov esp, ebp
-    pop ebp
+    mov     esp, ebp
+    pop     ebp
     ret
 
 ;---------------------------------------------------------------------------
