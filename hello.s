@@ -212,6 +212,49 @@ handle_done:
     ret
 
 ;---------------------------------------------------------------------------
+; hash(s *char) int
+; Given a null-terminated string `s`, compute it's polynomial rolling hash.
+; hash = sum([s[i] * p^i for i in 0..len(s)]) % m
+; ATM p = 31 and m = 10000 hardcoded
+hash:
+    push    ebp
+    mov     ebp, esp
+    push    0
+
+    mov     ecx, 0x00
+hash_loop:
+    mov     eax, [ebp+8]
+    movzx   ebx, byte [eax+ecx]
+    cmp     ebx, 0x00
+    je      hash_done
+
+
+    push    ebx
+    mov     eax, 31
+    mov     ebx, ecx
+    call    pow
+    pop     ebx
+    mul     ebx
+
+    pop     ebx
+    add     ebx, eax
+    push    ebx
+
+    inc     ecx
+    jmp     hash_loop
+hash_done:
+    xor     edx, edx
+    pop     eax
+    mov     ebx, 10000
+    div     ebx
+    mov     eax, edx
+    mov     esp, ebp
+    pop     ebp
+    ret
+;---------------------------------------------------------------------------
+
+
+;---------------------------------------------------------------------------
 ; atoi(s *char, l int) int
 ; Parse int from string s (s -> eax, l -> ebx) - with a caveat: since we
 ; know the string will be in the format '[0-9]+\.[0.9]', we will parse it as a
