@@ -386,52 +386,56 @@ hash_done:
 
 
 ;---------------------------------------------------------------------------
-; atoi(s *char, l int) int
-; Parse int from string s (s -> eax, l -> ebx) - with a caveat: since we
+; atoi(s *char) int
+; Parse int from the null-terminated string s - with a caveat: since we
 ; know the string will be in the format '[0-9]+\.[0.9]', we will parse it as a
-; regular int and not a floating point (e.g. atoi("12.3") -> 123)
+; regular int and not a floating point (e.g. atoi("12.3") -> 123). Result is 
+; returned in `eax`.
 atoi:
-    push    eax                     ; pointer to start of string
-    push    ebx                     ; string length
-    push    0                       ; exponent (y) for calculating x*10^y
-    push    0                       ; accumulated result
+    push    ebp                     ; set up stack frame
+    mov     ebp, esp
+    sub     esp, 8                  ; reserve space for local vars
+    mov     dword [ebp-4], 0        ; var result
+    mov     dword [ebp-8], 0        ; var exponent
 
+    push    ebx                     ; save registers that we modify
+    push    ecx
 
-    mov     ecx, -1                 ; start from -1: we inc first thing in loop so we reduce the number of branching when we hit '.'
+    mov     eax, [ebp+8]            ; calculate len of input string
+    call    slen
+    dec     eax                     ; the last index in string (len(s)-1)
+    mov     ecx, eax                ; going to loop backwards: (len(s)-1)..0
+
 atoi_loop:
-    inc     ecx                     ; i++
-    cmp     ecx, dword [esp+8]      ; if i == len(s)
-    je      atoi_end                ; break
+    cmp     ecx, -1                 ; break loop if out of bounds
+    je      atoi_end
 
-    mov     eax, dword [esp+12]     ; eax = &(s[0])
-    mov     ebx, dword [esp+8]      ; ebx = len(s)
-    sub     ebx, ecx                ; ebx -= i
-    mov     al, byte [eax+ebx-1]    ; al = s[len(s)-i]
-    cmp     al, 0x2E                ; if al == '.'
-    je      atoi_loop               ; continue
+    mov     eax, [ebp+8]            ; input string
+    movzx   eax, byte [eax+ecx]     ; get character at index (s[i])
+    cmp     eax, 2Eh                ; if char is '.' continue
+    je      continue
 
-    sub     al, 0x30                ; al = al - '0'
-    and     eax, 0xFF               ; kill all irrelevant bits
-    push    eax                     ; save for after we calculate 10^x
+    sub     eax, 30h                ; char is a digit, to get int, subtract '0'
+    push    eax                     ; save current digit
+    mov     eax, 10                 ; base 10
+    mov     ebx, [ebp-8]            ; exponent x
+    call    pow                     ; calculate 10^x
+    pop     ebx                     ; get current digit
+    mul     ebx                     ; multiply current digit with 10^x
 
-    mov     eax, 10                 ; first arg - base
-    mov     ebx, [esp+8]            ; second arg - exponent (from stack)
-    call    pow                     ; calc 10^x
-    add     dword [esp+8], 1        ; increment exponent
-
-    mov     ebx, eax                ; ebx = 10^x
-    pop     eax                     ; eax = current_digit
-    mul     ebx                     ; eax *= 10^x
-    pop     ebx                     ; get current total from stack
-    add     ebx, eax                ; add `current_digit * 10^x` to total
-    push    ebx                     ; push total back to stack
-
-    jmp     atoi_loop               ; loop
+    add     [ebp-4], eax            ; add to overall result
+    inc     dword [ebp-8]           ; increment exponent
+continue:
+    dec     ecx
+    jmp     atoi_loop
 atoi_end:
-    pop     eax
+    pop     ecx                     ; restore saved register
     pop     ebx
-    pop     ebx
-    pop     ebx
+
+    mov     eax, [ebp-4]            ; put result in eax
+
+    mov     esp, ebp                ; tear down stack frame
+    pop     ebp
     ret
 ;---------------------------------------------------------------------------
 
