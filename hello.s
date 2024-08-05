@@ -4,6 +4,7 @@ filename    db 'hello.s',0h
 sep         db ' --> ',0h
 buffer_size db 255
 
+
 ; Define (NOT initialized) variables in the BSS section
 SECTION .bss
 buffer              resb 4096
@@ -16,6 +17,21 @@ current_key_offset  resb 1
 current_val_buff    resb 10
 current_val_offset  resb 1
 
+struc result
+    .city:          resb 101
+    .min:           resd 1
+    .max:           resd 1
+    .sum:           resd 1
+    .cnt:           resd 1
+endstruc
+
+result_index        resd 10000
+result_pool         times 10000 resb result_size
+result_pool_i       resd 1
+
+parking             resb 101
+parking_off         resd 1
+parking_cpy         resb 101
 
 SECTION .text
 global _start
@@ -33,6 +49,10 @@ arg_loop:
     je      arg_loop
 
     call    cat
+
+    ; push    result_index
+    ; call    print_results
+
     jmp     arg_loop
 
 _end:
@@ -184,6 +204,8 @@ line_feed_found:
     mov     eax, current_val_buff
     call    sprintln
 
+    call    store
+
     mov     byte [current_key_offset], 0
     mov     byte [current_val_offset], 0
 switch_state:
@@ -210,6 +232,115 @@ handle_done:
     mov     esp, ebp
     pop     ebp
     ret
+
+;---------------------------------------------------------------------------
+; store() void
+store:
+    push    ebp
+    mov     ebp, esp
+
+    push    current_key_buff
+    call    hash
+
+    mov     edx, result_index
+    mov     ebx, [edx+eax*4]
+    cmp     ebx, 0
+    jne     update_existing
+
+allocate:
+    push    eax                             ; save key hash on stack
+    push    edx                             ; save key hash on stack
+    mov     eax, [result_pool_i]            ; calculate the offset of the next result (i * size)
+    mov     ebx, result_size
+    mul     ebx
+    mov     ebx, result_pool                ; get the final address by adding the offset to the start
+    add     ebx, eax
+
+    pop     edx                             ; retrieve hash value
+    pop     eax                             ; retrieve hash value
+    mov     [edx+eax*4], ebx                ; set the allocated result address in the index
+
+    mov     eax, [current_key_offset]       ; copy the key to the allocated result - start by incrementing
+    inc     eax                             ; the offset to get the actual number of bytes to be copied
+    push    eax                             ; (including the NULL)
+    push    current_key_buff
+    push    ebx
+    call    memcpy
+
+    inc     dword [result_pool_i]           ; increment the index of the next available spot for allocation
+
+update_existing:
+    push    current_val_buff
+    call    atoi
+min:
+    mov     edx, [ebx+result.min]
+    cmp     edx, eax
+    jle     max
+    mov     [ebx+result.min], eax
+max:
+    mov     edx, [ebx+result.max]
+    cmp     edx, eax
+    jge     sum
+    mov     [ebx+result.max], eax
+sum:
+    mov     edx, [ebx+result.sum]
+    add     edx, eax
+    mov     [ebx+result.sum], edx
+cnt:
+    inc     dword [ebx+result.cnt]
+
+    mov     esp, ebp
+    pop     ebp
+    ret
+;---------------------------------------------------------------------------
+
+;---------------------------------------------------------------------------
+; memcpy(dest, source *char, count int) void
+memcpy:
+    push    ebp
+    mov     ebp, esp
+
+    mov     ecx, 0
+memcpy_loop:
+    cmp     ecx, [ebp+16]
+    je      memcpy_loop_done
+
+    mov     eax, [ebp+12]
+    mov     al, byte [eax+ecx]
+    mov     ebx, [ebp+8]
+    mov     byte [ebx+ecx], al
+
+    inc     ecx
+    jmp     memcpy_loop
+memcpy_loop_done:
+    mov     esp, ebp
+    pop     ebp
+    ret
+;---------------------------------------------------------------------------
+
+;---------------------------------------------------------------------------
+; print_results() void
+print_results:
+    push    ebp
+    mov     ebp, esp
+
+    mov     eax, [ebp+8]
+    mov     ecx, 0
+print_results_loop:
+    mov     ebx, [eax+ecx*4]
+    cmp     ebx, 0
+    je      print_results_loop_done
+    push    ebx
+    call    sprintln
+    inc     ecx
+    jmp     print_results_loop
+print_results_loop_done:
+    mov     esp, ebp
+    pop     ebp
+    ret
+
+;---------------------------------------------------------------------------
+
 
 ;---------------------------------------------------------------------------
 ; hash(s *char) int
