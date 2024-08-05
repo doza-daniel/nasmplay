@@ -275,24 +275,24 @@ allocate:
     inc     dword [result_pool_i]           ; increment the index of the next available spot for allocation
 
 update_existing:
-    push    current_val_buff
+    push    current_val_buff                ; convert string value to int
     call    atoi
 min:
-    mov     edx, [ebx+result.min]
-    cmp     edx, eax
-    jle     max
-    mov     [ebx+result.min], eax
+    mov     edx, [ebx+result.min]           ; get current minimum
+    cmp     edx, eax                        ; compare with new value
+    jle     max                             ; if current minimum is smaller, continue
+    mov     [ebx+result.min], eax           ; else update it
 max:
-    mov     edx, [ebx+result.max]
-    cmp     edx, eax
-    jge     sum
-    mov     [ebx+result.max], eax
+    mov     edx, [ebx+result.max]           ; get current maximum
+    cmp     edx, eax                        ; compare with new value
+    jge     sum                             ; if current maximum is greater, continue
+    mov     [ebx+result.max], eax           ; else update it
 sum:
-    mov     edx, [ebx+result.sum]
+    mov     edx, [ebx+result.sum]           ; add the new value to the current sum
     add     edx, eax
     mov     [ebx+result.sum], edx
 cnt:
-    inc     dword [ebx+result.cnt]
+    inc     dword [ebx+result.cnt]          ; increment the count
 
 done:
     mov     eax, [ebp-4]                    ; restore modified registers
