@@ -4,7 +4,6 @@ filename    db 'hello.s',0h
 sep         db ' --> ',0h
 buffer_size db 255
 
-
 ; Define (NOT initialized) variables in the BSS section
 SECTION .bss
 buffer              resb 4096
@@ -236,16 +235,22 @@ handle_done:
 ;---------------------------------------------------------------------------
 ; store() void
 store:
-    push    ebp
+    push    ebp                             ; set up stack frame
     mov     ebp, esp
+    sub     esp, 16
 
-    push    current_key_buff
+    mov     [ebp-4], eax                    ; save registers that we modify
+    mov     [ebp-8], ebx
+    mov     [ebp-12], ecx
+    mov     [ebp-16], edx
+
+    push    current_key_buff                ; calculate hash of the key
     call    hash
 
-    mov     edx, result_index
+    mov     edx, result_index               ; get the position in the index array (base + hash*4)
     mov     ebx, [edx+eax*4]
-    cmp     ebx, 0
-    jne     update_existing
+    cmp     ebx, 0                          ; if it's NULL, means we should allocate new result
+    jne     update_existing                 ; otherwise, update the existing result
 
 allocate:
     push    eax                             ; save key hash on stack
@@ -260,7 +265,7 @@ allocate:
     pop     eax                             ; retrieve hash value
     mov     [edx+eax*4], ebx                ; set the allocated result address in the index
 
-    mov     eax, [current_key_offset]       ; copy the key to the allocated result - start by incrementing
+    movzx   eax, byte [current_key_offset]  ; copy the key to the allocated result - start by incrementing
     inc     eax                             ; the offset to get the actual number of bytes to be copied
     push    eax                             ; (including the NULL)
     push    current_key_buff
@@ -289,7 +294,13 @@ sum:
 cnt:
     inc     dword [ebx+result.cnt]
 
-    mov     esp, ebp
+done:
+    mov     eax, [ebp-4]                    ; restore modified registers
+    mov     ebx, [ebp-8]
+    mov     ecx, [ebp-12]
+    mov     edx, [ebp-16]
+
+    mov     esp, ebp                        ; tear down stack frame
     pop     ebp
     ret
 ;---------------------------------------------------------------------------
