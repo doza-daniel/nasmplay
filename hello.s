@@ -1,8 +1,10 @@
 ; Define (initialized) variables in the data section
 SECTION .data
-filename    db 'hello.s',0h
-sep         db ' --> ',0h
-buffer_size db 255
+filename        db 'hello.s',0h
+sep             db ' --> ',0h
+eq_string       db '=',0h
+comma_string    db ',',0h
+buffer_size     db 255
 
 ; Define (NOT initialized) variables in the BSS section
 SECTION .bss
@@ -28,14 +30,20 @@ result_index        resd 10000
 result_pool         times 10000 resb result_size
 result_pool_i       resd 1
 
-parking             resb 101
-parking_off         resd 1
-parking_cpy         resb 101
+itoa_buffer         resb 100
 
 SECTION .text
 global _start
 
 _start:
+    push itoa_buffer
+    push 123456
+    call itoa
+    mov eax, itoa_buffer
+    call sprintln
+    call exit
+
+
     pop     ecx
     mov     ebx, 0
 arg_loop:
@@ -49,8 +57,8 @@ arg_loop:
 
     call    cat
 
-    ; push    result_index
-    ; call    print_results
+    push    result_index
+    call    print_results
 
     jmp     arg_loop
 
@@ -63,6 +71,7 @@ _end:
 ; sprintln(s *char)
 ; Print the null-terminated string s (eax) to stdout and append line-feed
 sprintln:
+    push    eax
     call    sprint
 
     push    eax
@@ -72,6 +81,7 @@ sprintln:
     mov     eax, esp
     call    sprint
 
+    pop     eax
     pop     eax
     pop     eax
     ret
@@ -237,12 +247,16 @@ handle_done:
 store:
     push    ebp                             ; set up stack frame
     mov     ebp, esp
-    sub     esp, 16
+    sub     esp, 20
 
     mov     [ebp-4], eax                    ; save registers that we modify
     mov     [ebp-8], ebx
     mov     [ebp-12], ecx
     mov     [ebp-16], edx
+
+    push    current_val_buff                ; convert string value to int
+    call    atoi
+    mov     [ebp-20], eax
 
     push    current_key_buff                ; calculate hash of the key
     call    hash
@@ -272,11 +286,16 @@ allocate:
     push    ebx
     call    memcpy
 
+    mov     eax, [ebp-20]                   ; get current value (int)
+    mov     [ebx+result.min], eax
+    mov     [ebx+result.max], eax
+    mov     [ebx+result.sum], eax
+    mov     dword [ebx+result.cnt], 1h
+
     inc     dword [result_pool_i]           ; increment the index of the next available spot for allocation
 
 update_existing:
-    push    current_val_buff                ; convert string value to int
-    call    atoi
+    mov     eax, [ebp-20]                   ; get current value (int)
 min:
     mov     edx, [ebx+result.min]           ; get current minimum
     cmp     edx, eax                        ; compare with new value
@@ -334,18 +353,33 @@ memcpy_loop_done:
 print_results:
     push    ebp
     mov     ebp, esp
+    sub     esp, 16
+
+    mov     [ebp-4], eax                    ; save registers that we modify
+    mov     [ebp-8], ebx
+    mov     [ebp-12], ecx
+    mov     [ebp-16], edx
 
     mov     eax, [ebp+8]
     mov     ecx, 0
 print_results_loop:
+    cmp     ecx, 10000
+    je      print_results_loop_done
     mov     ebx, [eax+ecx*4]
     cmp     ebx, 0
-    je      print_results_loop_done
-    push    ebx
-    call    sprintln
+    je      print_results_continue
+    mov     eax, ebx
+    call    sprint
+print_results_continue:
     inc     ecx
     jmp     print_results_loop
+
 print_results_loop_done:
+    mov     eax, [ebp-4]                    ; restore modified registers
+    mov     ebx, [ebp-8]
+    mov     ecx, [ebp-12]
+    mov     edx, [ebp-16]
+
     mov     esp, ebp
     pop     ebp
     ret
@@ -446,6 +480,35 @@ atoi_end:
     mov     eax, [ebp-4]            ; put result in eax
 
     mov     esp, ebp                ; tear down stack frame
+    pop     ebp
+    ret
+;---------------------------------------------------------------------------
+
+;---------------------------------------------------------------------------
+; itoa(i int) char*
+itoa:
+    push    ebp
+    mov     ebp, esp
+    mov     eax, [ebp+8]
+    mov     ebx, [ebp+12]
+    mov     ecx, 0
+.loop:
+    cmp     eax, 0
+    je      .done
+    push    ecx
+    mov     ecx, 10
+    mov     edx, 0h
+    div     ecx
+    pop     ecx
+
+    add     edx, dword 30h
+    mov     [ebx+ecx], dl
+    inc     ecx
+    jmp     .loop
+.done:
+    inc     ecx
+    mov     [ebx+ecx], byte 0h
+    mov     esp, ebp
     pop     ebp
     ret
 ;---------------------------------------------------------------------------
