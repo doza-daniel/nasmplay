@@ -36,14 +36,6 @@ SECTION .text
 global _start
 
 _start:
-    push itoa_buffer
-    push 123456
-    call itoa
-    mov eax, itoa_buffer
-    call sprintln
-    call exit
-
-
     pop     ecx
     mov     ebx, 0
 arg_loop:
@@ -360,15 +352,25 @@ print_results:
     mov     [ebp-12], ecx
     mov     [ebp-16], edx
 
-    mov     eax, [ebp+8]
     mov     ecx, 0
 print_results_loop:
     cmp     ecx, 10000
     je      print_results_loop_done
+    mov     eax, [ebp+8]
     mov     ebx, [eax+ecx*4]
     cmp     ebx, 0
     je      print_results_continue
     mov     eax, ebx
+    call    sprint
+    push    itoa_buffer
+    push    dword [ebx+result.min]
+    call    itoa
+    mov     eax, itoa_buffer
+    call    sprint
+    push    itoa_buffer
+    push    dword [ebx+result.max]
+    call    itoa
+    mov     eax, itoa_buffer
     call    sprint
 print_results_continue:
     inc     ecx
@@ -489,6 +491,12 @@ atoi_end:
 itoa:
     push    ebp
     mov     ebp, esp
+
+    push    eax
+    push    ebx
+    push    ecx
+    push    edx
+
     mov     eax, [ebp+8]
     mov     ebx, [ebp+12]
     mov     ecx, 0
@@ -508,6 +516,12 @@ itoa:
 .done:
     inc     ecx
     mov     [ebx+ecx], byte 0h
+
+    pop     edx
+    pop     ecx
+    pop     ebx
+    pop     eax
+
     mov     esp, ebp
     pop     ebp
     ret
