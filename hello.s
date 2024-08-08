@@ -1,10 +1,13 @@
 ; Define (initialized) variables in the data section
 SECTION .data
-filename        db 'hello.s',0h
-sep             db ' --> ',0h
-eq_string       db '=',0h
-comma_string    db ',',0h
-buffer_size     db 255
+filename            db 'hello.s',0h
+sep                 db ' --> ',0h
+eq_string           db '=',0h
+slash_string        db '/',0h
+comma_string        db ', ',0h
+open_brace_string   db '{',0h
+closed_brace_string db '}',0h
+buffer_size         db 255
 
 ; Define (NOT initialized) variables in the BSS section
 SECTION .bss
@@ -256,9 +259,9 @@ store:
     mov     edx, result_index               ; get the position in the index array (base + hash*4)
     mov     ebx, [edx+eax*4]
     cmp     ebx, 0                          ; if it's NULL, means we should allocate new result
-    jne     update_existing                 ; otherwise, update the existing result
+    jne     .update_existing                ; otherwise, update the existing result
 
-allocate:
+.allocate:
     push    eax                             ; save key hash on stack
     push    edx                             ; save key hash on stack
     mov     eax, [result_pool_i]            ; calculate the offset of the next result (i * size)
@@ -286,26 +289,28 @@ allocate:
 
     inc     dword [result_pool_i]           ; increment the index of the next available spot for allocation
 
-update_existing:
+    jmp     store.done
+
+.update_existing:
     mov     eax, [ebp-20]                   ; get current value (int)
-min:
+.min:
     mov     edx, [ebx+result.min]           ; get current minimum
     cmp     edx, eax                        ; compare with new value
-    jle     max                             ; if current minimum is smaller, continue
+    jle     .max                            ; if current minimum is smaller, continue
     mov     [ebx+result.min], eax           ; else update it
-max:
+.max:
     mov     edx, [ebx+result.max]           ; get current maximum
     cmp     edx, eax                        ; compare with new value
-    jge     sum                             ; if current maximum is greater, continue
+    jge     .sum                            ; if current maximum is greater, continue
     mov     [ebx+result.max], eax           ; else update it
-sum:
+.sum:
     mov     edx, [ebx+result.sum]           ; add the new value to the current sum
     add     edx, eax
     mov     [ebx+result.sum], edx
-cnt:
+.cnt:
     inc     dword [ebx+result.cnt]          ; increment the count
 
-done:
+.done:
     mov     eax, [ebp-4]                    ; restore modified registers
     mov     ebx, [ebp-8]
     mov     ecx, [ebp-12]
@@ -345,38 +350,75 @@ memcpy_loop_done:
 print_results:
     push    ebp
     mov     ebp, esp
-    sub     esp, 16
+    sub     esp, 17
 
     mov     [ebp-4], eax                    ; save registers that we modify
     mov     [ebp-8], ebx
     mov     [ebp-12], ecx
     mov     [ebp-16], edx
+    mov     byte [ebp-17], 0h
 
     mov     ecx, 0
-print_results_loop:
+.loop:
     cmp     ecx, 10000
-    je      print_results_loop_done
+    je      .done
+
     mov     eax, [ebp+8]
     mov     ebx, [eax+ecx*4]
     cmp     ebx, 0
-    je      print_results_continue
+    je      .continue
+
+    cmp     byte [ebp-17], 0h
+    jne     .print_comma
+.print_brace:
+    mov     eax, open_brace_string
+    call    sprint
+    mov     byte [ebp-17], 1h
+    jmp     .print_single
+.print_comma:
+    mov     eax, comma_string
+    call    sprint
+
+
+.print_single:
     mov     eax, ebx
+    call    sprint
+    mov     eax, eq_string
     call    sprint
     push    itoa_buffer
     push    dword [ebx+result.min]
     call    itoa
     mov     eax, itoa_buffer
     call    sprint
+    mov     eax, slash_string
+    call    sprint
     push    itoa_buffer
     push    dword [ebx+result.max]
     call    itoa
     mov     eax, itoa_buffer
     call    sprint
-print_results_continue:
+    mov     eax, slash_string
+    call    sprint
+    push    itoa_buffer
+    push    dword [ebx+result.sum]
+    call    itoa
+    mov     eax, itoa_buffer
+    call    sprint
+    mov     eax, slash_string
+    call    sprint
+    push    itoa_buffer
+    push    dword [ebx+result.cnt]
+    call    itoa
+    mov     eax, itoa_buffer
+    call    sprint
+.continue:
     inc     ecx
-    jmp     print_results_loop
+    jmp     .loop
 
-print_results_loop_done:
+.done:
+    mov     eax, closed_brace_string
+    call    sprint
+
     mov     eax, [ebp-4]                    ; restore modified registers
     mov     ebx, [ebp-8]
     mov     ecx, [ebp-12]
@@ -514,7 +556,6 @@ itoa:
     inc     ecx
     jmp     .loop
 .done:
-    inc     ecx
     mov     [ebx+ecx], byte 0h
 
     pop     edx
