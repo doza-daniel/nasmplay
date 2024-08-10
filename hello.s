@@ -557,6 +557,9 @@ itoa:
     jmp     .loop
 .done:
     mov     [ebx+ecx], byte 0h
+    push    ebx
+    call    reverse
+    add     esp, 4
 
     pop     edx
     pop     ecx
@@ -584,6 +587,47 @@ pow_loop:
 pow_end:
     pop     ecx
     ret
+
+;---------------------------------------------------------------------------
+reverse:
+    push    ebp
+    mov     ebp, esp
+
+    push    eax
+    push    ebx
+    push    ecx
+    push    edx
+
+    mov     eax, [ebp+8]
+    call    slen
+    dec     eax
+
+    mov     ecx, 0
+.loop:
+    cmp     ecx, eax
+    jge     .end
+    mov     ebx, [ebp+8]
+    mov     dl, [ebx+ecx]
+
+    push    eax
+    mov     al, [ebx+eax]
+    mov     [ebx+ecx], al
+    pop     eax
+    mov     [ebx+eax], dl
+
+    inc     ecx
+    dec     eax
+    jmp     .loop
+.end:
+    push    edx
+    push    ecx
+    push    ebx
+    push    eax
+
+    mov     esp, ebp
+    pop     ebp
+    ret
+;---------------------------------------------------------------------------
 
 ;---------------------------------------------------------------------------
 ; indexOf(s *char, l int, c char)
