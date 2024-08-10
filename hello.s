@@ -559,7 +559,7 @@ itoa:
     mov     [ebx+ecx], byte 0h
     push    ebx
     call    reverse
-    add     esp, 4
+    pop     ebx
 
     pop     edx
     pop     ecx
